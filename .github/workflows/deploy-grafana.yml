@@ -1,0 +1,42 @@
+name: Deploy Grafana
+
+on:
+  push:
+    tags:        
+      - '*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Kubernetes context
+        run: |
+          mkdir -p ${HOME}/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ${HOME}/.kube/config
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.12.0
+
+      - name: Deploy Grafana with Helm
+        run: |
+          helm repo add grafana https://charts.bitnami.com/bitnami
+          helm repo update
+          helm upgrade --install grafana bitnami/grafana --version 11.3.26 \
+            --namespace influxdb \
+            --set ingress.enabled=true \
+            --set ingress.hostname="${{ secrets.GRAFANA_HOST }}" \
+            --set ingress.path="/" \
+            --set admin.password="${{ secrets.GRAFANA_ADMIN_PASSWORD }}" \
+            --set ingress.pathType=ImplementationSpecific \
+            --set ingress.annotations."kubernetes\.io/ingress\.class"=traefik \
+            --set ingress.annotations."cert-manager\.io/cluster-issuer"=letsencrypt-dns \
+            --set ingress.tls=true \
+            --set ingress.extraTls[0].hosts[0]="${{ secrets.GRAFANA_HOST }}" \
+            --set ingress.extraTls[0].secretName=grafana-tls \
+            --set service.type=ClusterIP
