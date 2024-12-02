@@ -37,6 +37,7 @@ jobs:
             --set ingress.pathType=ImplementationSpecific \
             --set ingress.annotations."kubernetes\.io/ingress\.class"=traefik \
             --set ingress.annotations."cert-manager\.io/cluster-issuer"=letsencrypt-dns \
+            --set ingress.hostname="${{ secrets.RABBIT_HOST }}" \
             --set ingress.tls=true \
             --set ingress.extraTls[0].hosts[0]="${{ secrets.RABBIT_HOST }}" \
             --set ingress.extraTls[0].secretName=rabbit-tls \

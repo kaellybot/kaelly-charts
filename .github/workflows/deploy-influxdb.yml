@@ -25,7 +25,7 @@ jobs:
 
       - name: Deploy InfluxDB with Helm
         run: |
-          helm repo add influxdb https://charts.bitnami.com/bitnami
+          helm repo add bitnami https://charts.bitnami.com/bitnami
           helm repo update
           helm upgrade --install influxdb bitnami/influxdb --version 6.3.22 \
             --namespace influxdb --create-namespace \
