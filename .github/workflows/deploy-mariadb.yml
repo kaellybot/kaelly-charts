@@ -25,7 +25,7 @@ jobs:
 
       - name: Deploy MySQL with Helm
         run: |
-          helm repo add mysql https://charts.bitnami.com/bitnami
+          helm repo add bitnami https://charts.bitnami.com/bitnami
           helm repo update
           helm upgrade --install mysql bitnami/mysql --version 12.0.0 \
             --namespace mysql --create-namespace \
