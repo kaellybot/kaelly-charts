@@ -1,0 +1,33 @@
+name: Deploy Redis
+
+on:
+  push:
+    tags:        
+      - '*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Kubernetes context
+        run: |
+          mkdir -p ${HOME}/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ${HOME}/.kube/config
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.12.0
+
+      - name: Deploy Redis with Helm
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
+          helm upgrade --install redis bitnami/redis --version 20.3.0 \
+            --namespace redis --create-namespace \
+            --set global.redis.password=${{ secrets.REDIS_PASSWORD }} \
+            --set architecture="standalone"

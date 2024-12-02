@@ -1,0 +1,74 @@
+name: Deploy cert-manager
+
+on:
+  push:
+    tags:        
+      - '*' 
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Kubernetes context
+        run: |
+          mkdir -p ${HOME}/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ${HOME}/.kube/config
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.12.0
+
+      - name: Install Cert-Manager CRDs
+        run: |
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.1/cert-manager.crds.yaml
+
+      - name: Deploy cert-manager with Helm
+        run: |
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo update
+          helm upgrade --install cert-manager jetstack/cert-manager \
+            --namespace cert-manager \
+            --create-namespace \
+            --version v1.16.1 \
+            --set podDnsConfig.nameservers[0]="1.1.1.1" \
+            --set podDnsConfig.nameservers[1]="8.8.8.8"
+
+      - name: Configure ClusterIssuer for Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
+        run: |
+          kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: cloudflare-api-token-secret
+            namespace: cert-manager
+          type: Opaque
+          data:
+            api-token: $(echo -n "${CLOUDFLARE_API_TOKEN}" | base64)
+          ---
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: letsencrypt-dns
+          spec:
+            acme:
+              email: $(echo -n "${ACME_EMAIL}" )
+              server: https://acme-v01.api.letsencrypt.org/directory
+              privateKeySecretRef:
+                name: letsencrypt-dns-key
+              solvers:
+              - dns01:
+                  cloudflare:
+                    email: $(echo -n "${CLOUDFLARE_EMAIL}")
+                    apiTokenSecretRef:
+                      name: cloudflare-api-token-secret
+                      key: api-token
+          EOF
