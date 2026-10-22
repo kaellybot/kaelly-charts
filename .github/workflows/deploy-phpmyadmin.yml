@@ -23,18 +23,19 @@ jobs:
         with:
           version: v3.12.0
 
-      - name: Deploy phpMyAdmin with Helm
+      # Bitnami no longer publishes free image updates, so phpMyAdmin moved to
+      # the official image; the former Helm release must go first because its
+      # Deployment selector differs and cannot be patched in place.
+      - name: Remove former Bitnami release
         run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo update
-          helm upgrade --install phpmyadmin bitnami/phpmyadmin --version 18.0.0 \
-            --namespace mysql \
-            --set ingress.enabled=true \
-            --set ingress.path="/" \
-            --set ingress.pathType=ImplementationSpecific \
-            --set ingress.annotations."kubernetes\.io/ingress\.class"=traefik \
-            --set ingress.annotations."cert-manager\.io/cluster-issuer"=letsencrypt-dns \
-            --set ingress.hostname="${{ secrets.PHPMYADMIN_HOST }}" \
-            --set ingress.tls=true \
-            --set ingress.extraTls[0].hosts[0]="${{ secrets.PHPMYADMIN_HOST }}" \
-            --set ingress.extraTls[0].secretName=phpmyadmin-tls
+          if helm status phpmyadmin --namespace mysql > /dev/null 2>&1; then
+            helm uninstall phpmyadmin --namespace mysql --wait
+          fi
+
+      - name: Deploy phpMyAdmin
+        env:
+          PHPMYADMIN_HOST: ${{ secrets.PHPMYADMIN_HOST }}
+        run: |
+          envsubst '${PHPMYADMIN_HOST}' < phpmyadmin/phpmyadmin.yaml | kubectl apply -f -
+          kubectl rollout restart deployment/phpmyadmin --namespace mysql
+          kubectl rollout status deployment/phpmyadmin --namespace mysql --timeout=180s
